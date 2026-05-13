@@ -56,12 +56,16 @@
     let lastSmileScore = 0;
 
     async function loadModels() {
-      statusEl.textContent = "Loading smile detector...";
+      try {
+        const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model";
 
-      const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model";
+        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
 
-      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-      await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        console.log("Smile models loaded");
+      } catch (err) {
+        console.error("Model load failed:", err);
+      }
     }
 
     async function startCamera() {
@@ -71,4 +75,149 @@
           audio: false
         });
 
+        video.srcObject = stream;
+
+        video.onloadedmetadata = async () => {
+          await video.play();
+
+          statusEl.textContent = "Camera ready";
+
+          setTimeout(async () => {
+            if (window.faceapi) {
+              await startSmileDetection();
+            } else {
+              smileScoreEl.textContent = "Smile Score: Not available";
+              capturePhoto();
+            }
+          }, 1000);
+        };
+
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Camera access denied: " + err.message;
+      }
+    }
+
+    async function startSmileDetection() {
+      let attempts = 0;
+
+      const interval = setInterval(async () => {
+        attempts++;
+
+        await detectSmile();
+
+        if (attempts >= 8) {
+          clearInterval(interval);
+          capturePhoto();
+        }
+      }, 300);
+    }
+
+    async function detectSmile() {
+      try {
+        const detection = await faceapi
+          .detectSingleFace(
+            video,
+            new faceapi.TinyFaceDetectorOptions({
+              inputSize: 224,
+              scoreThreshold: 0.5
+            })
+          )
+          .withFaceLandmarks();
+
+        if (!detection) {
+          smileScoreEl.textContent = "Smile Score: Face not detected";
+          return;
+        }
+
+        const mouth = detection.landmarks.getMouth();
+
+        const left = mouth[0];
+        const right = mouth[6];
+        const top = mouth[13];
+        const bottom = mouth[19];
+
+        const mouthWidth = Math.hypot(
+          right.x - left.x,
+          right.y - left.y
+        );
+
+        const mouthHeight = Math.hypot(
+          bottom.x - top.x,
+          bottom.y - top.y
+        );
+
+        let ratio = mouthHeight / mouthWidth;
+
+        let smilePercent = Math.round(ratio * 550);
+
+        smilePercent = Math.max(1, Math.min(100, smilePercent));
+
+        lastSmileScore = smilePercent;
+
+        smileScoreEl.textContent =
+          `Smile Score: ${smilePercent}%`;
+
+      } catch (err) {
+        console.error(err);
+        smileScoreEl.textContent = "Smile detection error";
+      }
+    }
+
+    async function capturePhoto() {
+      statusEl.textContent =
+        `Capturing photo... Smile Score: ${lastSmileScore}%`;
+
+      const context = canvas.getContext("2d");
+
+      context.drawImage(
+        video,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
+      const imageData = canvas.toDataURL("image/png");
+
+      try {
+        const res = await fetch("/api/upload-photo", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            imageData,
+            smileScore: lastSmileScore
+          })
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          throw new Error(errorText || "Upload failed");
+        }
+
+        statusEl.textContent =
+          `Photo saved! Smile Score: ${lastSmileScore}%`;
+
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Upload Error: " + err.message;
+      }
+    }
+
+    window.addEventListener("load", async () => {
+      await startCamera();
+
+      try {
+        await loadModels();
+        smileScoreEl.textContent = "Smile detector ready";
+      } catch (err) {
+        console.error(err);
+        smileScoreEl.textContent = "Smile detector unavailable";
+      }
+    });
+  </script>
+
+</body>
 </html>
