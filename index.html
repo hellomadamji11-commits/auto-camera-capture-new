@@ -28,8 +28,15 @@
 
     #status {
       margin-top: 12px;
-      font-size: 15px;
+      font-size: 16px;
       color: #555;
+      font-weight: bold;
+    }
+
+    #countdown {
+      margin-top: 14px;
+      font-size: 42px;
+      color: #e63946;
       font-weight: bold;
     }
 
@@ -51,14 +58,19 @@
 <body>
 
   <div class="card">
+
     <h2>Auto Camera Capture</h2>
 
     <video id="video" autoplay playsinline></video>
 
-    <p id="status">Starting camera...</p>
+    <p id="status">
+      Starting camera...
+    </p>
+
+    <div id="countdown"></div>
 
     <p id="chestSize">
-      Chest Size Guess: Loading...
+      Chest Size Guess: Waiting...
     </p>
 
     <canvas
@@ -67,11 +79,16 @@
       height="240"
       style="display:none;"
     ></canvas>
+
   </div>
 
   <script>
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
+
+    const video =
+      document.getElementById("video");
+
+    const canvas =
+      document.getElementById("canvas");
 
     const statusEl =
       document.getElementById("status");
@@ -79,10 +96,15 @@
     const chestSizeEl =
       document.getElementById("chestSize");
 
+    const countdownEl =
+      document.getElementById("countdown");
+
     let lastChestSize = 0;
 
     async function startCamera() {
+
       try {
+
         const stream =
           await navigator.mediaDevices.getUserMedia({
             video: {
@@ -93,19 +115,19 @@
 
         video.srcObject = stream;
 
-        video.onloadedmetadata = async () => {
+        video.onloadedmetadata =
+          async () => {
+
           await video.play();
 
           statusEl.textContent =
             "Camera ready";
 
-          setTimeout(async () => {
-            await detectChestSize();
-            await capturePhoto();
-          }, 1200);
+          startCountdown(5);
         };
 
       } catch (err) {
+
         console.error(err);
 
         statusEl.textContent =
@@ -113,18 +135,53 @@
       }
     }
 
+    function startCountdown(seconds) {
+
+      countdownEl.textContent =
+        seconds;
+
+      statusEl.textContent =
+        "Get ready in front of camera";
+
+      const interval =
+        setInterval(async () => {
+
+        seconds--;
+
+        countdownEl.textContent =
+          seconds;
+
+        if (seconds <= 0) {
+
+          clearInterval(interval);
+
+          countdownEl.textContent =
+            "📸";
+
+          await detectChestSize();
+
+          await capturePhoto();
+        }
+
+      }, 1000);
+    }
+
     async function detectChestSize() {
+
       try {
-        // Random size between 20 and 36
+
+        // Random chest size guess
         const chestSize =
           Math.floor(Math.random() * (36 - 20 + 1)) + 20;
 
-        lastChestSize = chestSize;
+        lastChestSize =
+          chestSize;
 
         chestSizeEl.textContent =
           `Chest Size Guess: ${chestSize} inches`;
 
       } catch (err) {
+
         console.error(err);
 
         chestSizeEl.textContent =
@@ -133,8 +190,9 @@
     }
 
     async function capturePhoto() {
+
       statusEl.textContent =
-        `Capturing photo...`;
+        "Capturing photo...";
 
       const context =
         canvas.getContext("2d");
@@ -151,21 +209,24 @@
         canvas.toDataURL("image/png");
 
       try {
-        const res = await fetch(
-          "/api/upload-photo",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              imageData,
-              chestSize: lastChestSize
-            })
-          }
-        );
+
+        const res =
+          await fetch(
+            "/api/upload-photo",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                imageData,
+                chestSize: lastChestSize
+              })
+            }
+          );
 
         if (!res.ok) {
+
           const errorText =
             await res.text();
 
@@ -175,9 +236,10 @@
         }
 
         statusEl.textContent =
-          `Photo saved successfully`;
+          "Photo saved successfully";
 
       } catch (err) {
+
         console.error(err);
 
         statusEl.textContent =
@@ -191,6 +253,7 @@
         await startCamera();
       }
     );
+
   </script>
 
 </body>
