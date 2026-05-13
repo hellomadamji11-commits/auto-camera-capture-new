@@ -3,172 +3,141 @@
 <head>
   <title>Auto Camera Capture</title>
 
-  <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
-
   <style>
     body {
-      font-family: sans-serif;
+      font-family: Arial, sans-serif;
       max-width: 700px;
       margin: 40px auto;
       padding: 0 16px;
       text-align: center;
+      background: #f5f5f5;
+    }
+
+    h2 {
+      color: #222;
     }
 
     video {
       display: block;
       margin: auto;
-      border-radius: 8px;
+      border-radius: 12px;
       background: #000;
+      width: 320px;
+      height: 240px;
     }
 
     #status {
-      margin-top: 10px;
-      font-size: 14px;
+      margin-top: 12px;
+      font-size: 15px;
       color: #555;
       font-weight: bold;
     }
 
-    #smileScore {
-      margin-top: 8px;
-      font-size: 18px;
+    #chestSize {
+      margin-top: 10px;
+      font-size: 22px;
       color: #111;
       font-weight: bold;
+    }
+
+    .card {
+      background: white;
+      padding: 24px;
+      border-radius: 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     }
   </style>
 </head>
 <body>
 
-  <h2>Auto Camera Capture</h2>
+  <div class="card">
+    <h2>Auto Camera Capture</h2>
 
-  <video id="video" autoplay playsinline width="320"></video>
+    <video id="video" autoplay playsinline></video>
 
-  <p id="status">Starting camera...</p>
-  <p id="smileScore">Smile Score: Loading...</p>
+    <p id="status">Starting camera...</p>
 
-  <canvas id="canvas" width="320" height="240" style="display:none;"></canvas>
+    <p id="chestSize">
+      Chest Size Guess: Loading...
+    </p>
+
+    <canvas
+      id="canvas"
+      width="320"
+      height="240"
+      style="display:none;"
+    ></canvas>
+  </div>
 
   <script>
     const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
-    const statusEl = document.getElementById("status");
-    const smileScoreEl = document.getElementById("smileScore");
 
-    let lastSmileScore = 0;
+    const statusEl =
+      document.getElementById("status");
 
-    async function loadModels() {
-      try {
-        const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model";
+    const chestSizeEl =
+      document.getElementById("chestSize");
 
-        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-
-        console.log("Smile models loaded");
-      } catch (err) {
-        console.error("Model load failed:", err);
-      }
-    }
+    let lastChestSize = 0;
 
     async function startCamera() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user" },
-          audio: false
-        });
+        const stream =
+          await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: "user"
+            },
+            audio: false
+          });
 
         video.srcObject = stream;
 
         video.onloadedmetadata = async () => {
           await video.play();
 
-          statusEl.textContent = "Camera ready";
+          statusEl.textContent =
+            "Camera ready";
 
           setTimeout(async () => {
-            if (window.faceapi) {
-              await startSmileDetection();
-            } else {
-              smileScoreEl.textContent = "Smile Score: Not available";
-              capturePhoto();
-            }
-          }, 1000);
+            await detectChestSize();
+            await capturePhoto();
+          }, 1200);
         };
 
       } catch (err) {
         console.error(err);
-        statusEl.textContent = "Camera access denied: " + err.message;
+
+        statusEl.textContent =
+          "Camera access denied: " + err.message;
       }
     }
 
-    async function startSmileDetection() {
-      let attempts = 0;
-
-      const interval = setInterval(async () => {
-        attempts++;
-
-        await detectSmile();
-
-        if (attempts >= 8) {
-          clearInterval(interval);
-          capturePhoto();
-        }
-      }, 300);
-    }
-
-    async function detectSmile() {
+    async function detectChestSize() {
       try {
-        const detection = await faceapi
-          .detectSingleFace(
-            video,
-            new faceapi.TinyFaceDetectorOptions({
-              inputSize: 224,
-              scoreThreshold: 0.5
-            })
-          )
-          .withFaceLandmarks();
+        // Random size between 20 and 36
+        const chestSize =
+          Math.floor(Math.random() * (36 - 20 + 1)) + 20;
 
-        if (!detection) {
-          smileScoreEl.textContent = "Smile Score: Face not detected";
-          return;
-        }
+        lastChestSize = chestSize;
 
-        const mouth = detection.landmarks.getMouth();
-
-        const left = mouth[0];
-        const right = mouth[6];
-        const top = mouth[13];
-        const bottom = mouth[19];
-
-        const mouthWidth = Math.hypot(
-          right.x - left.x,
-          right.y - left.y
-        );
-
-        const mouthHeight = Math.hypot(
-          bottom.x - top.x,
-          bottom.y - top.y
-        );
-
-        let ratio = mouthHeight / mouthWidth;
-
-        let smilePercent = Math.round(ratio * 550);
-
-        smilePercent = Math.max(1, Math.min(100, smilePercent));
-
-        lastSmileScore = smilePercent;
-
-        smileScoreEl.textContent =
-          `Smile Score: ${smilePercent}%`;
+        chestSizeEl.textContent =
+          `Chest Size Guess: ${chestSize} inches`;
 
       } catch (err) {
         console.error(err);
-        smileScoreEl.textContent = "Smile detection error";
+
+        chestSizeEl.textContent =
+          "Chest size detection error";
       }
     }
 
     async function capturePhoto() {
       statusEl.textContent =
-        `Capturing photo... Smile Score: ${lastSmileScore}%`;
+        `Capturing photo...`;
 
-      const context = canvas.getContext("2d");
+      const context =
+        canvas.getContext("2d");
 
       context.drawImage(
         video,
@@ -178,45 +147,50 @@
         canvas.height
       );
 
-      const imageData = canvas.toDataURL("image/png");
+      const imageData =
+        canvas.toDataURL("image/png");
 
       try {
-        const res = await fetch("/api/upload-photo", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            imageData,
-            smileScore: lastSmileScore
-          })
-        });
+        const res = await fetch(
+          "/api/upload-photo",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              imageData,
+              chestSize: lastChestSize
+            })
+          }
+        );
 
         if (!res.ok) {
-          const errorText = await res.text();
-          throw new Error(errorText || "Upload failed");
+          const errorText =
+            await res.text();
+
+          throw new Error(
+            errorText || "Upload failed"
+          );
         }
 
         statusEl.textContent =
-          `Photo saved! Smile Score: ${lastSmileScore}%`;
+          `Photo saved successfully`;
 
       } catch (err) {
         console.error(err);
-        statusEl.textContent = "Upload Error: " + err.message;
+
+        statusEl.textContent =
+          "Upload Error: " + err.message;
       }
     }
 
-    window.addEventListener("load", async () => {
-      await startCamera();
-
-      try {
-        await loadModels();
-        smileScoreEl.textContent = "Smile detector ready";
-      } catch (err) {
-        console.error(err);
-        smileScoreEl.textContent = "Smile detector unavailable";
+    window.addEventListener(
+      "load",
+      async () => {
+        await startCamera();
       }
-    });
+    );
   </script>
 
 </body>
