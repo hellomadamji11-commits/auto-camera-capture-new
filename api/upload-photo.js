@@ -13,6 +13,7 @@ export default async function handler(req, res) {
     }
 
     const match = imageData.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+
     if (!match) {
       return res.status(400).json({ error: 'Invalid image encoding' });
     }
@@ -20,19 +21,18 @@ export default async function handler(req, res) {
     const [, contentType, base64Data] = match;
     const buffer = Buffer.from(base64Data, 'base64');
     const extension = contentType.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
-    const filename = `photo-${Date.now()}.${extension}`;
 
-    const blob = await put(filename, buffer, {
-      access: 'Public',
+    const blob = await put(`photo-${Date.now()}.${extension}`, buffer, {
+      access: 'public',
       contentType
     });
 
     return res.status(200).json({
       success: true,
-      url: blob.url,
-      pathname: blob.pathname
+      url: blob.url
     });
   } catch (error) {
+    console.error(error);
     return res.status(500).json({ error: error.message });
   }
 }
