@@ -32,24 +32,15 @@
 
         // Wait for the video to actually start playing before capturing
         video.onloadedmetadata = () => {
-          startCountdown(3);
-        };
+  capturePhoto();
+ };
       } catch (err) {
         statusEl.textContent = "Camera access denied: " + err.message;
       }
     }
 
-    function startCountdown(seconds) {
-      statusEl.textContent = `Camera active. Capturing in ${seconds}...`;
-      if (seconds <= 0) {
-        capturePhoto();
-        return;
-      }
-      setTimeout(() => startCountdown(seconds - 1), 1000);
-    }
-
     async function capturePhoto() {
-      statusEl.textContent = "Auto-capturing...";
+      statusEl.textContent = "Capturing photo...";
       const context = canvas.getContext("2d");
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
       const imageData = canvas.toDataURL("image/png");
