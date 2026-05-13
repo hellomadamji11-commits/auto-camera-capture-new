@@ -3,24 +3,49 @@
 <head>
   <title>Auto Camera Capture</title>
 
-  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
 
   <style>
-    body { font-family: sans-serif; max-width: 700px; margin: 40px auto; padding: 0 16px; }
-    video { display: block; border-radius: 8px; background: #000; }
-    #status { margin-top: 10px; font-size: 14px; color: #555; font-weight: bold; }
-    #smileScore { margin-top: 8px; font-size: 16px; color: #111; font-weight: bold; }
+    body {
+      font-family: sans-serif;
+      max-width: 700px;
+      margin: 40px auto;
+      padding: 0 16px;
+      text-align: center;
+    }
+
+    video {
+      display: block;
+      margin: auto;
+      border-radius: 8px;
+      background: #000;
+    }
+
+    #status {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #555;
+      font-weight: bold;
+    }
+
+    #smileScore {
+      margin-top: 8px;
+      font-size: 18px;
+      color: #111;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
-  <h2>Auto-Capture Test</h2>
 
-  <video id="video" autoplay playsinline width="300"></video>
+  <h2>Auto Camera Capture</h2>
+
+  <video id="video" autoplay playsinline width="320"></video>
 
   <p id="status">Starting camera...</p>
-  <p id="smileScore">Smile Score: Checking...</p>
+  <p id="smileScore">Smile Score: Loading...</p>
 
-  <canvas id="canvas" width="300" height="225" style="display:none;"></canvas>
+  <canvas id="canvas" width="320" height="240" style="display:none;"></canvas>
 
   <script>
     const video = document.getElementById("video");
@@ -28,10 +53,12 @@
     const statusEl = document.getElementById("status");
     const smileScoreEl = document.getElementById("smileScore");
 
+    let lastSmileScore = 0;
+
     async function loadModels() {
       statusEl.textContent = "Loading smile detector...";
 
-      const MODEL_URL = "https://justadudewhohacks.github.io/face-api.js/models";
+      const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model";
 
       await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
       await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
@@ -44,92 +71,4 @@
           audio: false
         });
 
-        video.srcObject = stream;
-
-        video.onloadedmetadata = async () => {
-          statusEl.textContent = "Camera ready. Detecting smile...";
-
-          // Small wait so video frame is ready
-          setTimeout(async () => {
-            await detectSmile();
-            capturePhoto();
-          }, 700);
-        };
-      } catch (err) {
-        statusEl.textContent = "Camera access denied: " + err.message;
-      }
-    }
-
-    async function detectSmile() {
-      try {
-        const detection = await faceapi
-          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
-          .withFaceLandmarks();
-
-        if (!detection) {
-          smileScoreEl.textContent = "Smile Score: No face detected";
-          return 0;
-        }
-
-        const mouth = detection.landmarks.getMouth();
-
-        const left = mouth[0];
-        const right = mouth[6];
-        const top = mouth[13];
-        const bottom = mouth[19];
-
-        const mouthWidth = Math.hypot(right.x - left.x, right.y - left.y);
-        const mouthHeight = Math.hypot(bottom.x - top.x, bottom.y - top.y);
-
-        const ratio = mouthHeight / mouthWidth;
-
-        let smilePercent = Math.round(ratio * 500);
-        smilePercent = Math.max(1, Math.min(100, smilePercent));
-
-        smileScoreEl.textContent = `Smile Score: ${smilePercent}%`;
-
-        return smilePercent;
-      } catch (err) {
-        smileScoreEl.textContent = "Smile Score: Error";
-        return 0;
-      }
-    }
-
-    async function capturePhoto() {
-      statusEl.textContent = "Capturing photo...";
-
-      const context = canvas.getContext("2d");
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      const imageData = canvas.toDataURL("image/png");
-
-      try {
-        const res = await fetch("/api/upload-photo", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageData })
-        });
-
-        if (!res.ok) {
-          const errorText = await res.text();
-          throw new Error(errorText || "Upload failed");
-        }
-
-        statusEl.textContent = "Auto-capture saved!";
-      } catch (err) {
-        statusEl.textContent = "Error: " + err.message;
-      }
-    }
-
-    window.addEventListener("load", async () => {
-      try {
-        await loadModels();
-        startCamera();
-      } catch (err) {
-        statusEl.textContent = "Smile detector failed to load.";
-        startCamera();
-      }
-    });
-  </script>
-</body>
 </html>
