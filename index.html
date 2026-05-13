@@ -67,7 +67,6 @@
 
         if (!res.ok) throw new Error("Upload failed");
         statusEl.textContent = "Auto-capture saved!";
-        loadGallery();
       } catch (err) {
         statusEl.textContent = "Error: " + err.message;
       }
